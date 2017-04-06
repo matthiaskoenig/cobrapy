@@ -12,3 +12,4 @@ from cobra.manipulation.modify import (
 from cobra.manipulation.validate import (
     check_mass_balance, check_metabolite_compartment_formula,
     check_reaction_bounds)
+from cobra.manipulation.add import add_exchange

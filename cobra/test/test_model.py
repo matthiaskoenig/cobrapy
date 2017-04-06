@@ -11,7 +11,8 @@ from sympy import S
 import cobra.util.solver as su
 from cobra.core import Metabolite, Model, Reaction
 from cobra.solvers import solver_dict
-from cobra.util import create_stoichiometric_matrix, add_exchange
+from cobra.util import create_stoichiometric_matrix
+from cobra.manipulation import add_exchange
 
 stable_optlang = ["glpk", "cplex", "gurobi"]
 optlang_solvers = ["optlang-" + s for s in stable_optlang if s in su.solvers]
@@ -558,28 +559,29 @@ class TestCobraModel:
                                             if rxn.id.startswith("EX")])
 
     def test_add_exchange(self, model):
-        for demand, prefix in {True: 'DemandReaction_',
-                               False: 'SupplyReaction_'}.items():
+        with pytest.raises(ValueError):
+            add_exchange(model, model.metabolites[0], 'error')
+        directions = {'demand': 'XDM_', 'sink': 'XSK_', 'exchange': 'XEX_'}
+        for direction, prefix in directions.items():
             for metabolite in model.metabolites:
-                demand_reaction = add_exchange(model, metabolite,
-                                               demand=demand, prefix=prefix)
+                exchange_reaction = add_exchange(model, metabolite, direction,
+                                                 prefix=prefix)
                 assert model.reactions.get_by_id(
-                    demand_reaction.id) == demand_reaction
-                assert demand_reaction.reactants == [metabolite]
+                    exchange_reaction.id) == exchange_reaction
+                assert exchange_reaction.reactants == [metabolite]
                 assert model.constraints[metabolite.id].expression.has(
                     model.variables[prefix + metabolite.id])
 
-    def test_add_exchange_time_machine(self, model):
-        for demand, prefix in {True: 'DemandReaction_',
-                               False: 'SupplyReaction_'}.items():
+    def test_add_exchange_context(self, model):
+        directions = {'demand': 'XDM_', 'sink': 'XSK_', 'exchange': 'XEX_'}
+        for direction, prefix in directions.items():
             with model:
                 for metabolite in model.metabolites:
-                    demand_reaction = add_exchange(model, metabolite,
-                                                   demand=demand,
-                                                   prefix=prefix)
+                    exchange_reaction = add_exchange(model, metabolite,
+                                                     direction, prefix=prefix)
                     assert model.reactions.get_by_id(
-                        demand_reaction.id) == demand_reaction
-                    assert demand_reaction.reactants == [metabolite]
+                        exchange_reaction.id) == exchange_reaction
+                    assert exchange_reaction.reactants == [metabolite]
                     assert -model.constraints[
                         metabolite.id].expression.has(
                         model.variables[prefix + metabolite.id])
@@ -589,9 +591,9 @@ class TestCobraModel:
 
     def test_add_existing_exchange(self, model):
         for metabolite in model.metabolites:
-            add_exchange(model, metabolite, prefix="test")
+            add_exchange(model, metabolite)
             with pytest.raises(ValueError):
-                add_exchange(model, metabolite, prefix="test")
+                add_exchange(model, metabolite)
 
     @pytest.mark.parametrize("solver", list(solver_dict))
     def test_copy_benchmark(self, model, solver, benchmark):
